@@ -1,0 +1,99 @@
+services:
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: miniouser
+      MINIO_ROOT_PASSWORD: miniosecret
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  redis:
+    image: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  neo4j:
+    image: neo4j:latest
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/securepassword  # Change 'yourpassword' to a secure password
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_import:/var/lib/neo4j/import
+      - neo4j_plugins:/plugins
+  # janusgraph:
+  #   image: janusgraph/janusgraph:latest
+  #   ports:
+  #     - "8182:8182"
+  #   environment:
+  #     - JANUS_PROPS_TEMPLATE=cql
+  #     - janusgraph.storage.backend=cql
+  #     - janusgraph.storage.hostname=cassandra
+  #   depends_on:
+  #     - cassandra
+  #
+  # cassandra:
+  #   image: cassandra:latest
+  #   ports:
+  #     - "9042:9042"
+  #   volumes:
+  #     - cassandra_data:/var/lib/cassandra
+  #
+  # arangodb:
+  #   image: arangodb:latest
+  #   environment:
+  #     ARANGO_ROOT_PASSWORD: yourpassword
+  #   ports:
+  #     - "8529:8529"
+  #   volumes:
+  #     - arangodb_data:/var/lib/arangodb3
+  #     - arangodb_apps_data:/var/lib/arangodb3-apps
+  
+  ventilator:
+    build: ./ventilator
+    ports:
+      - "5050:5050"
+
+  nuner:
+    build: ./nuner
+    depends_on:
+      - minio
+      - redis
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: miniouser
+      MINIO_SECRET_KEY: miniosecret
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "5051:5051"
+    volumes:
+      - model_data:/home/appuser/.cache
+
+  worker:
+    build: ./nuner
+    depends_on:
+      - redis
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    command: ["python3", "worker.py"]
+
+volumes:
+  minio_data:
+  arangodb_data:
+  arangodb_apps_data:
+  model_data:
+  cassandra_data:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_import:
+  neo4j_plugins:
