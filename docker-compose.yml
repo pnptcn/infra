@@ -1,10 +1,95 @@
 services:
+
+  ventilator:
+    build: ./ventilator
+    ports:
+      - "5050:5050"
+
+  nuner:
+    build: ./nuner
+    depends_on:
+      - minio
+      - redis
+      - neo4j
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: miniouser
+      MINIO_SECRET_KEY: miniosecret
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "5051:5051"
+    volumes:
+      - /Users/theapemachine/.cache/huggingface:/home/appuser/.cache/huggingface
+
+  # knowitall:
+  #   build: ./knowitall
+  #   depends_on:
+  #     - minio
+  #     - redis
+  #     - neo4j
+  #   environment:
+  #     MINIO_ENDPOINT: http://minio:9000
+  #     MINIO_ACCESS_KEY: miniouser
+  #     MINIO_SECRET_KEY: miniosecret
+  #     REDIS_URL: redis://redis:6379/0
+  #   ports:
+  #     - "5052:5052"
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   volumes:
+  #     - /home/theapemachine/.cache/huggingface:/home/appuser/.cache/huggingface
+
+  domainator:
+    build: ./domainator
+    depends_on:
+      - redis
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: miniouser
+      MINIO_SECRET_KEY: miniosecret
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "5053:5053"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /Users/theapemachine/.cache/huggingface:/home/appuser/.cache/huggingface
+
+  nuner_worker:
+    build: ./nuner
+    depends_on:
+      - redis
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: miniouser
+      MINIO_SECRET_KEY: miniosecret
+      REDIS_URL: redis://redis:6379/0
+    command: ["python3", "worker.py"]
+    volumes:
+      - /Users/theapemachine/.cache/huggingface:/home/appuser/.cache/huggingface
+      - ./nuner:/app
+
+  domainator_worker:
+    build: ./domainator
+    depends_on:
+      - redis
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: miniouser
+      MINIO_SECRET_KEY: miniosecret
+      REDIS_URL: redis://redis:6379/0
+    command: ["python3", "worker.py"]
+    volumes:
+      - /Users/theapemachine/.cache/huggingface:/home/appuser/.cache/huggingface
+
   minio:
     image: minio/minio
     container_name: minio
     ports:
       - "9000:9000"
       - "9001:9001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       MINIO_ROOT_USER: miniouser
       MINIO_ROOT_PASSWORD: miniosecret
@@ -21,15 +106,28 @@ services:
   neo4j:
     image: neo4j:latest
     ports:
-      - "7474:7474"  # HTTP
-      - "7687:7687"  # Bolt
+      - "7474:7474"
+      - "7687:7687"
     environment:
-      - NEO4J_AUTH=neo4j/securepassword  # Change 'yourpassword' to a secure password
+      - NEO4J_AUTH=neo4j/securepassword
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+      - NEO4J_PLUGINS=["apoc"]
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
-      - neo4j_import:/var/lib/neo4j/import
+      - /Users/theapemachine/data:/var/lib/neo4j/import
       - neo4j_plugins:/plugins
+
+  # foucault:
+  #   build: ./foucault
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./foucault/entrypoints:/app/entrypoints
+  #     - ./foucault/.output:/app/.output
+
   # janusgraph:
   #   image: janusgraph/janusgraph:latest
   #   ports:
@@ -57,42 +155,12 @@ services:
   #   volumes:
   #     - arangodb_data:/var/lib/arangodb3
   #     - arangodb_apps_data:/var/lib/arangodb3-apps
-  
-  ventilator:
-    build: ./ventilator
-    ports:
-      - "5050:5050"
-
-  nuner:
-    build: ./nuner
-    depends_on:
-      - minio
-      - redis
-    environment:
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: miniouser
-      MINIO_SECRET_KEY: miniosecret
-      REDIS_URL: redis://redis:6379/0
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-    ports:
-      - "5051:5051"
-    volumes:
-      - model_data:/home/appuser/.cache
-
-  worker:
-    build: ./nuner
-    depends_on:
-      - redis
-    environment:
-      REDIS_URL: redis://redis:6379/0
-    command: ["python3", "worker.py"]
 
 volumes:
   minio_data:
-  arangodb_data:
-  arangodb_apps_data:
-  model_data:
-  cassandra_data:
+  # arangodb_data:
+  # arangodb_apps_data:
+  # cassandra_data:
   neo4j_data:
   neo4j_logs:
   neo4j_import:
